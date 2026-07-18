@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/akshargk/aws-devops-project/issues"
   },
-  "homepage": "https://github.com/akshargk/aws-devops-project#readme"
+  "homepage": "https://github.com/akshargk/aws-devops-project#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
 }
