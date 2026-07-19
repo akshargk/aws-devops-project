@@ -1,4 +1,5 @@
 const express = require("express");
+const pool = require("./config/db");
 
 const app = express();
 const PORT = 3000;
@@ -6,108 +7,109 @@ const PORT = 3000;
 // Middleware
 app.use(express.json());
 
-// Temporary data
-let tasks = [
-  {
-    id: 1,
-    title: "Learn AWS",
-    completed: false,
-  },
-  {
-    id: 2,
-    title: "Build REST API",
-    completed: true,
-  },
-];
-
 // Home Route
 app.get("/", (req, res) => {
   res.send("🚀 AWS DevOps Task Manager API is running!");
 });
 
 // Get all tasks
-app.get("/tasks", (req, res) => {
-  res.json(tasks);
+app.get("/tasks", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM tasks ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Database error" });
+  }
 });
 
 // Get task by ID
-app.get("/tasks/:id", (req, res) => {
-  const id = parseInt(req.params.id);
+app.get("/tasks/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM tasks WHERE id = $1",
+      [req.params.id]
+    );
 
-  const task = tasks.find((task) => task.id === id);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
 
-  if (!task) {
-    return res.status(404).json({
-      message: "Task not found",
-    });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Database error" });
   }
-
-  res.json(task);
 });
 
-// Create a new task
-app.post("/tasks", (req, res) => {
+// Create task
+app.post("/tasks", async (req, res) => {
   const { title, completed } = req.body;
 
   if (!title) {
-    return res.status(400).json({
-      message: "Title is required",
-    });
+    return res.status(400).json({ message: "Title is required" });
   }
 
-  const newTask = {
-    id: tasks.length + 1,
-    title,
-    completed: completed || false,
-  };
+  try {
+    const result = await pool.query(
+      "INSERT INTO tasks (title, completed) VALUES ($1, $2) RETURNING *",
+      [title, completed ?? false]
+    );
 
-  tasks.push(newTask);
-
-  res.status(201).json({
-    message: "Task created successfully",
-    task: newTask,
-  });
+    res.status(201).json({
+      message: "Task created successfully",
+      task: result.rows[0],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Database error" });
+  }
 });
 
-// Update a task
-app.put("/tasks/:id", (req, res) => {
-  const id = parseInt(req.params.id);
+// Update task
+app.put("/tasks/:id", async (req, res) => {
+  const { title, completed } = req.body;
 
-  const task = tasks.find((task) => task.id === id);
+  try {
+    const result = await pool.query(
+      "UPDATE tasks SET title = $1, completed = $2 WHERE id = $3 RETURNING *",
+      [title, completed, req.params.id]
+    );
 
-  if (!task) {
-    return res.status(404).json({
-      message: "Task not found",
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json({
+      message: "Task updated successfully",
+      task: result.rows[0],
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Database error" });
   }
-
-  task.title = req.body.title ?? task.title;
-  task.completed = req.body.completed ?? task.completed;
-
-  res.json({
-    message: "Task updated successfully",
-    task,
-  });
 });
 
-// Delete a task
-app.delete("/tasks/:id", (req, res) => {
-  const id = parseInt(req.params.id);
+// Delete task
+app.delete("/tasks/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM tasks WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
 
-  const index = tasks.findIndex((task) => task.id === id);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Task not found" });
+    }
 
-  if (index === -1) {
-    return res.status(404).json({
-      message: "Task not found",
+    res.json({
+      message: "Task deleted successfully",
+      task: result.rows[0],
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Database error" });
   }
-
-  const deletedTask = tasks.splice(index, 1);
-
-  res.json({
-    message: "Task deleted successfully",
-    task: deletedTask[0],
-  });
 });
 
 // Start server
